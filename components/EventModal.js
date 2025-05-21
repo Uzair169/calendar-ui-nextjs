@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types'; // Import PropTypes for type checking
 import {
   Dialog,
   DialogTitle,
@@ -30,7 +31,7 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
   const [end, setEnd] = useState(defaultDate || new Date()); // Event end time
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false); // State for confirmation dialog visibility
   const [confirmAction, setConfirmAction] = useState(null); // Tracks the action to confirm (create, update, delete)
-  const [error, setError] = useState(''); // Error message for validation failures
+  const [errors, setErrors] = useState({}); // Dedicated error state object for validation issues
 
   // Effect to initialize form fields when modal opens or event/defaultDate changes
   useEffect(() => {
@@ -47,34 +48,35 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
       setStart(defaultDate);
       setEnd(new Date(defaultDate.getTime() + 30 * 60 * 1000)); // Default to 30 minutes duration
     }
-    setError(''); // Reset error message when modal opens
+    setErrors({}); // Reset errors when modal opens
   }, [event, defaultDate]);
 
   // Validate the event data before submission
   const validateEvent = () => {
-    const now = new Date(); // Current date and time for validation (e.g., 03:19 AM PKT, May 21, 2025)
+    const newErrors = {};
+    const now = new Date(); // Current date and time for validation (e.g., 03:01 PM PKT, May 21, 2025)
     const startTime = new Date(start);
     const endTime = new Date(end);
 
     // Validation 1: Ensure title is not empty
     if (!title.trim()) {
-      return 'Title cannot be empty.';
+      newErrors.title = 'Title cannot be empty.';
     }
 
     // Validation 2: Prevent past dates for start time
     if (startTime < now) {
-      return 'Start time cannot be in the past.';
+      newErrors.start = 'Start time cannot be in the past.';
     }
 
     // Validation 3: Ensure end time is after start time
     if (endTime <= startTime) {
-      return 'End time must be after start time.';
+      newErrors.end = 'End time must be after start time.';
     }
 
     // Validation 4: Ensure minimum duration of 15 minutes
     const minDuration = 15 * 60 * 1000; // 15 minutes in milliseconds
     if (endTime - startTime < minDuration) {
-      return 'Event must be at least 15 minutes long.';
+      newErrors.duration = 'Event must be at least 15 minutes long.';
     }
 
     // Validation 5: Check for overlap with other events
@@ -83,29 +85,28 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
       isOverlapping(startTime, endTime, existingEvent.start, existingEvent.end)
     );
     if (hasOverlap) {
-      return 'This event overlaps with another event. Please choose a different time.';
+      newErrors.overlap = 'This event overlaps with another event. Please choose a different time.';
     }
 
-    return ''; // No errors found
+    setErrors(newErrors); // Update error state
+    return Object.keys(newErrors).length === 0; // Return true if no errors
   };
 
   // Handle form submission for creating or updating an event
   const handleSubmit = () => {
-    const validationError = validateEvent();
-    if (validationError) {
-      setError(validationError); // Display validation error
-      return;
+    const isValid = validateEvent();
+    if (!isValid) {
+      return; // Stop if validation fails
     }
 
     // If validation passes, open confirmation dialog
-    setError('');
     setConfirmAction(event ? 'update' : 'create'); // Set action type based on whether editing or creating
     setConfirmDialogOpen(true);
   };
 
   // Handle deletion of an event
   const handleDelete = () => {
-    setError('');
+    setErrors({}); // Clear errors
     setConfirmAction('delete'); // Set action type to delete
     setConfirmDialogOpen(true);
   };
@@ -179,10 +180,12 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
-                setError(''); // Clear error on change
+                setErrors(prev => ({ ...prev, title: '' })); // Clear title error on change
               }}
               placeholder="Add Title"
               InputProps={{ style: inputStyle }}
+              error={!!errors.title} // Highlight field if error exists
+              helperText={errors.title} // Display error message below field
             />
           </div>
           {/* Description Input */}
@@ -195,10 +198,12 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
               value={description}
               onChange={(e) => {
                 setDescription(e.target.value);
-                setError(''); // Clear error on change
+                setErrors(prev => ({ ...prev, description: '' })); // Clear description error on change
               }}
               placeholder="Daily session"
               InputProps={{ style: inputStyle }}
+              error={!!errors.description} // Highlight field if error exists
+              helperText={errors.description} // Display error message below field
             />
           </div>
           {/* Start Time Input */}
@@ -210,7 +215,7 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
               value={toLocalDateTimeString(start)}
               onChange={(e) => {
                 setStart(new Date(e.target.value));
-                setError(''); // Clear error on change
+                setErrors(prev => ({ ...prev, start: '' })); // Clear start error on change
               }}
               InputProps={{
                 style: {
@@ -220,6 +225,8 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
                   color: '#24cdcc',
                 },
               }}
+              error={!!errors.start} // Highlight field if error exists
+              helperText={errors.start} // Display error message below field
             />
           </div>
           {/* End Time Input */}
@@ -231,7 +238,7 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
               value={toLocalDateTimeString(end)}
               onChange={(e) => {
                 setEnd(new Date(e.target.value));
-                setError(''); // Clear error on change
+                setErrors(prev => ({ ...prev, end: '' })); // Clear end error on change
               }}
               InputProps={{
                 style: {
@@ -241,12 +248,14 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
                   color: '#24cdcc',
                 },
               }}
+              error={!!errors.end} // Highlight field if error exists
+              helperText={errors.end} // Display error message below field
             />
           </div>
-          {/* Display validation error if any */}
-          {error && (
+          {/* Display additional validation errors if any (e.g., duration, overlap) */}
+          {(errors.duration || errors.overlap) && (
             <Typography style={{ color: '#ff4444', fontSize: '14px', fontFamily: 'Inter, Montserrat, sans-serif', marginTop: '8px' }}>
-              {error}
+              {errors.duration || errors.overlap}
             </Typography>
           )}
         </DialogContent>
@@ -332,7 +341,7 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
             {confirmAction === 'delete'
               ? 'Are you sure you want to delete this event?'
               : confirmAction === 'update'
-              ? 'Are you sure you want to update this event?'
+              ? 'Are you sure you to update this event?'
               : 'Are you sure you want to create this event?'}
           </Typography>
         </DialogContent>
@@ -383,6 +392,29 @@ const EventModal = ({ open, onClose, onCreateOrUpdate, onDelete, defaultDate, ev
       </Dialog>
     </>
   );
+};
+
+// Define PropTypes for type checking
+EventModal.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onCreateOrUpdate: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired,
+  defaultDate: PropTypes.instanceOf(Date),
+  event: PropTypes.shape({
+    id: PropTypes.number,
+    title: PropTypes.string,
+    description: PropTypes.string,
+    start: PropTypes.instanceOf(Date),
+    end: PropTypes.instanceOf(Date),
+  }),
+  events: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.number,
+    title: PropTypes.string,
+    start: PropTypes.instanceOf(Date),
+    end: PropTypes.instanceOf(Date),
+  })).isRequired,
+  isOverlapping: PropTypes.func.isRequired,
 };
 
 export default EventModal;

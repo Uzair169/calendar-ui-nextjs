@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar'; // Import calendar components
 import format from 'date-fns/format'; // Date formatting utility
 import parse from 'date-fns/parse'; // Date parsing utility
@@ -31,7 +31,7 @@ function isOverlapping(newStart, newEnd, existingStart, existingEnd) {
 
 // Utility function to determine if a time slot is disabled (past or overlapping)
 function isSlotDisabled(slotTime, events) {
-  const now = new Date(); // Current date and time (e.g., 03:28 AM PKT, May 21, 2025)
+  const now = new Date(); // Current date and time (e.g., 03:13 PM PKT, May 21, 2025)
   if (slotTime < now) return true; // Disable past time slots
 
   // Check for overlap with existing events (30-minute slot duration)
@@ -180,6 +180,50 @@ const CustomEventWrapper = ({ event, children, currentView }) => {
   return children;
 };
 
+// Notification Component
+const Notification = ({ message, type, onClose }) => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+      setTimeout(onClose, 500); // Allow fade-out animation (0.5s)
+    }, 3000); // Auto-close after 3 seconds
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const getStyle = () => {
+    switch (type) {
+      case 'error':
+        return { backgroundColor: '#ff4444', color: '#fff' };
+      case 'info':
+      default:
+        return { backgroundColor: '#24cdcc', color: '#fff' };
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        padding: '12px 20px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+        zIndex: 1000,
+        opacity: isVisible ? 1 : 0,
+        transition: 'opacity 0.5s ease-in-out',
+        ...getStyle(),
+        fontFamily: montserrat.style.fontFamily,
+        fontSize: '14px',
+      }}
+    >
+      {message}
+    </div>
+  );
+};
+
 // Main Home Component for the calendar application
 export default function Home() {
   // State for managing events and calendar interactions
@@ -234,14 +278,19 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState(new Date()); // Currently selected date
   const [selectedEvent, setSelectedEvent] = useState(null); // Selected event for editing
   const [currentView, setCurrentView] = useState(Views.MONTH); // Current calendar view (Month, Week, Day)
+  const [notification, setNotification] = useState({ message: '', type: 'info', visible: false }); // State for notifications
 
   // Handle selecting a time slot to create a new event
   const handleSlotSelect = (slotInfo) => {
     const { start, end } = slotInfo;
-    const now = new Date(); // Current date and time (e.g., 03:28 AM PKT, May 21, 2025)
+    const now = new Date(); // Current date and time (e.g., 03:13 PM PKT, May 21, 2025)
 
     if (start < now) {
-      alert('You cannot book a meeting in the past.');
+      setNotification({
+        message: 'You cannot book a meeting in the past.',
+        type: 'error',
+        visible: true,
+      });
       return;
     }
 
@@ -251,7 +300,11 @@ export default function Home() {
     );
 
     if (hasOverlap) {
-      alert('This time slot is already booked. Please select a different time.');
+      setNotification({
+        message: 'This time slot is already booked. Please select a different time.',
+        type: 'error',
+        visible: true,
+      });
       return;
     }
 
@@ -311,7 +364,7 @@ export default function Home() {
 
   // Customize day cell styles (e.g., highlight today, gray out past days)
   const dayPropGetter = (date) => {
-    const now = new Date(); // Current date and time (e.g., 03:28 AM PKT, May 21, 2025)
+    const now = new Date(); // Current date and time (e.g., 03:13 PM PKT, May 21, 2025)
     const dateCopy = new Date(date.getTime());
     const nowCopy = new Date(now.getTime());
 
@@ -334,6 +387,11 @@ export default function Home() {
     return isToday ? { className: 'rbc-today' } : {}; // Highlight today
   };
 
+  // Close notification
+  const handleCloseNotification = () => {
+    setNotification(prev => ({ ...prev, visible: false }));
+  };
+
   return (
     <div
       className={`${inter.className} ${montserrat.className}`} // Apply custom fonts
@@ -342,6 +400,7 @@ export default function Home() {
         fontFamily: montserrat.style.fontFamily,
         backgroundColor: '#f0f0f0', // Gray background for the page
         minHeight: '100vh', // Full viewport height
+        position: 'relative', // Ensure notifications are positioned relative to this container
       }}
     >
       {/* Global Styles */}
@@ -363,6 +422,14 @@ export default function Home() {
           line-height: 1.2; // Style for event titles in time views
         }
       `}</style>
+      {/* Notification */}
+      {notification.visible && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={handleCloseNotification}
+        />
+      )}
       {/* Left Sidebar: Mini Calendar */}
       <div style={{ width: '25%', padding: '20px', paddingRight: '20px', paddingTop: '2em' }}>
         <LeftMiniCalendar
