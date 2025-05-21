@@ -3,7 +3,7 @@ A React-based calendar for event management.
 
 ## Setup
 1. Clone the repo.
-2. Run `npm install` and `npm start`.
+2. Run `npm install` and `npm run dev`.
 
 ## File Structure
 - `index.js`: Main calendar component.
